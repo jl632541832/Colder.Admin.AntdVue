@@ -2,7 +2,6 @@
 using EFCore.Sharding;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,21 +14,13 @@ namespace Coldairarrow.Api
     {
         public Startup(IConfiguration configuration)
         {
-            Configuration = configuration;
+            _configuration = configuration;
         }
 
-        public IConfiguration Configuration { get; }
+        private readonly IConfiguration _configuration;
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddFxServices();
-            services.AddAutoMapper();
-            services.AddEFCoreSharding(config =>
-            {
-                var dbOptions = Configuration.GetSection("Database:BaseDb").Get<DatabaseOptions>();
-
-                config.UseDatabase(dbOptions.ConnectionString, dbOptions.DatabaseType);
-            });
             services.Configure<ApiBehaviorOptions>(options => options.SuppressModelStateInvalidFilter = true);
             services.AddControllers(options =>
             {
@@ -59,30 +50,39 @@ namespace Coldairarrow.Api
                     Type = OpenApiSecuritySchemeType.Http
                 });
             });
+
+            //jwt
+            services.AddJwt(_configuration);
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            //允许body重用
-            app.Use(next => context =>
-            {
-                context.Request.EnableBuffering();
-                return next(context);
-            })
-            .UseMiddleware<CorsMiddleware>()//跨域
-            .UseDeveloperExceptionPage()
-            .UseStaticFiles(new StaticFileOptions
-            {
-                ServeUnknownFileTypes = true,
-                DefaultContentType = "application/octet-stream"
-            })
-            .UseRouting()
-            .UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
-            });
-            app.UseOpenApi(); //添加swagger生成api文档（默认路由文档 /swagger/v1/swagger.json）
-            app.UseSwaggerUi3();//添加Swagger UI到请求管道中(默认路由: /swagger).
+            //跨域
+            app.UseCors(x =>
+                {
+                    x.AllowAnyOrigin()
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .DisallowCredentials();
+                })
+                .UseMiddleware<RequestBodyMiddleware>()
+                .UseMiddleware<RequestLogMiddleware>()
+                .UseDeveloperExceptionPage()
+                .UseStaticFiles(new StaticFileOptions
+                {
+                    ServeUnknownFileTypes = true,
+                    DefaultContentType = "application/octet-stream"
+                })
+                .UseRouting()
+                .UseAuthentication()
+                .UseAuthorization()
+                .UseEndpoints(endpoints =>
+                {
+                    endpoints.MapControllers().RequireAuthorization();
+                })
+                .UseOpenApi()//添加swagger生成api文档（默认路由文档 /swagger/v1/swagger.json）
+                .UseSwaggerUi3()//添加Swagger UI到请求管道中(默认路由: /swagger).
+                ;
         }
     }
 }
