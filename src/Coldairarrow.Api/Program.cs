@@ -21,6 +21,8 @@ namespace Coldairarrow.Api
                     services.AddAutoMapper();
                     services.AddEFCoreSharding(config =>
                     {
+                        config.SetEntityAssemblies(GlobalAssemblies.AllAssemblies);
+
                         var dbOptions = hostContext.Configuration.GetSection("Database:BaseDb").Get<DatabaseOptions>();
 
                         config.UseDatabase(dbOptions.ConnectionString, dbOptions.DatabaseType);
